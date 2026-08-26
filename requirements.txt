@@ -1,0 +1,10 @@
+langgraph
+langchain-groq
+python-dotenv
+langgraph
+langchain-openai
+python-dotenv
+fastapi
+uvicorn[standard]
+streamlit
+requests

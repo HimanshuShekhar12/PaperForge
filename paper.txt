@@ -1,0 +1,62 @@
+Title: SimAM: A Simple, Parameter-Free Attention Module for
+Convolutional Neural Networks
+
+Summary:
+This paper proposes an attention module for convolutional neural
+networks (ConvNets) that adds no extra trainable parameters to the
+network. Unlike typical channel attention (e.g. Squeeze-and-Excitation)
+or spatial attention modules, which generate 1-D or 2-D attention
+weights and apply them uniformly across the other dimension, this
+module estimates a full 3-D attention weight for every neuron in a
+feature map -- one weight per (channel, height, width) position.
+
+Method:
+The module is motivated by neuroscience findings on spatial
+suppression, where a neuron's importance is judged relative to its
+neighboring neurons in the same channel. For a target neuron t and
+the other neurons in the same channel (n = H*W - 1 of them, where
+H and W are the feature map's spatial height and width), the method
+defines a linear energy function measuring how well a linear
+separation distinguishes the target neuron t from its neighbors,
+using values w_t (weight) and b_t (bias):
+
+    e_t(w_t, b_t) = (1/n) * sum_i [ (-1 - (w_t * x_i + b_t))^2 ]
+                    + (-1 - (w_t * t + b_t))^2
+                    + lambda * w_t^2
+
+where x_i are the other neurons in the same channel, and lambda is a
+regularization coefficient. Minimizing this energy with respect to
+w_t and b_t has a closed-form solution:
+
+    w_t = -2 * (t - mu) / ((t - mu)^2 + 2*sigma^2 + 2*lambda)
+    b_t = -1/2 * (t + mu) * w_t
+
+where mu and sigma^2 are the mean and variance of all neurons in
+that channel excluding t (in practice, approximated using the mean
+and variance over the whole channel for efficiency). The minimum
+energy value is then:
+
+    e_t* = 4 * (sigma^2 + lambda) / ((t - mu)^2 + 2*sigma^2 + 2*lambda)
+
+A neuron with lower minimum energy e_t* is considered more important
+(more distinct from its neighbors) and should receive a larger
+attention weight. Since attention modulation typically manifests as
+a gain (scaling) effect rather than an additive one, the feature
+refinement step is:
+
+    X_refined = sigmoid(1 / E) * X
+
+where E groups all e_t* values across the channel, height, and width
+dimensions, sigmoid is used to bound the values (and improve
+numerical stability, since e_t* can be very large), and the
+multiplication is element-wise. This whole module has no learnable
+parameters -- only a fixed hyperparameter lambda -- and can be
+inserted after any convolutional block in an existing ConvNet
+(e.g. after each residual block in a ResNet) without changing the
+number of channels or spatial dimensions.
+
+Expected inputs/outputs:
+Input: a 4-D feature map tensor X of shape (batch, channels, height,
+width), as produced by a convolutional layer.
+Output: a refined feature map of the same shape (batch, channels,
+height, width), to be passed to the next layer in the network.
